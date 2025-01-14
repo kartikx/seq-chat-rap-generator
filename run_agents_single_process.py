@@ -1,9 +1,7 @@
 from autogen_core import SingleThreadedAgentRuntime
 import asyncio
-from constants import Message, style_analyzer_topic
-from autogen_core import TopicId
 from agents import StyleAnalyzerAgent, ConceptGeneratorAgent, VerseComposerAgent, LyricEnhancerAgent, UserAgent
-from constants import model_client, concept_generator_topic, verse_composer_topic, lyric_enhancer_topic, user_topic
+from constants import model_client, style_analyzer_topic, concept_generator_topic, verse_composer_topic, lyric_enhancer_topic, user_topic, run_test
 
 
 async def main():
@@ -24,19 +22,7 @@ async def main():
 
     runtime.start()
 
-    task1 = asyncio.create_task(runtime.publish_message(
-        Message(
-            content="Write a verse for Kendrick Lamar's album 'Good Kid M.A.A.D City'"),
-        topic_id=TopicId(style_analyzer_topic, source="default"),
-    ))
-
-    task2 = asyncio.create_task(runtime.publish_message(
-        Message(
-            content="Write a verse for Drake's album 'Take Care'"),
-        topic_id=TopicId(style_analyzer_topic, source="default"),
-    ))
-
-    await asyncio.gather(task1, task2)
+    await run_test(runtime)
 
     await runtime.stop_when_idle()
 

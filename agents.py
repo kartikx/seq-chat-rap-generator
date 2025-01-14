@@ -1,4 +1,4 @@
-from constants import Message, style_analyzer_topic, concept_generator_topic, model_client, verse_composer_topic, lyric_enhancer_topic, user_topic
+from constants import Message, style_analyzer_topic, concept_generator_topic, model_client, verse_composer_topic, lyric_enhancer_topic, user_topic, simulate_network_delay
 from dataclasses import dataclass
 from autogen_ext.runtimes.grpc import GrpcWorkerAgentRuntime
 
@@ -10,7 +10,9 @@ from autogen_core import (
     type_subscription,
 )
 from autogen_core.models import ChatCompletionClient, SystemMessage, UserMessage
-import asyncio
+import time
+import logging
+import random
 
 
 @type_subscription(topic_type=style_analyzer_topic)
@@ -40,16 +42,28 @@ class StyleAnalyzerAgent(RoutedAgent):
     async def handle_user_description(self, message: Message, ctx: MessageContext) -> None:
         prompt = f"Hip hop artist with an Album or Song name: {
             message.content}"
+
+        start_time = time.time()
         llm_result = await self._model_client.create(
             messages=[self._system_message, UserMessage(
                 content=prompt, source=self.id.key)],
             cancellation_token=ctx.cancellation_token,
         )
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        log_entry = f"{message.session_id} {self.id.type}: {elapsed_time}"
+        # logging.info(log_entry)
+
         response = llm_result.content
         assert isinstance(response, str)
-        print(f"{'-'*80}\n{self.id.type}:\n{response}")
+        print(f"{'-'*80}\n{self.id.type} {message.session_id}:\n{response}")
 
-        await self.publish_message(Message(response), topic_id=TopicId(concept_generator_topic, source=self.id.key))
+        if simulate_network_delay:
+            delay = random.uniform(0.01, 0.1)
+            time.sleep(delay)
+
+        await self.publish_message(Message(response, message.session_id), topic_id=TopicId(concept_generator_topic, source=self.id.key))
 
 
 @type_subscription(topic_type=concept_generator_topic)
@@ -88,11 +102,15 @@ class ConceptGeneratorAgent(RoutedAgent):
         response = llm_result.content
         assert (isinstance(response, str))
 
-        print(f"{'-'*80}\n{self.id.type}:\n{response}")
+        print(f"{'-'*80}\n{self.id.type} {message.session_id}:\n{response}")
 
         response = message.content + "\n" + response
 
-        await self.publish_message(Message(response), topic_id=TopicId(verse_composer_topic, source=self.id.key))
+        if simulate_network_delay:
+            delay = random.uniform(0.01, 0.1)
+            time.sleep(delay)
+
+        await self.publish_message(Message(response, message.session_id), topic_id=TopicId(verse_composer_topic, source=self.id.key))
 
 
 @type_subscription(topic_type=verse_composer_topic)
@@ -105,6 +123,8 @@ class VerseComposerAgent(RoutedAgent):
                 "You are a skilled hip-hop lyricist. Using the artist’s style profile and the generated concepts, craft an 8 line rap verse.
                 The verse must reflect the artist's signature flow, rhyme patterns, and lyrical themes.
                 Maintain authenticity to the artist’s tone while making it creative and engaging."
+
+                Only return the verse.
 
                 Example Output:
                 Cold nights turned me savage, now I’m burnin’ through the ceiling,
@@ -136,9 +156,13 @@ class VerseComposerAgent(RoutedAgent):
         response = llm_result.content
         assert (isinstance(response, str))
 
-        print(f"{'-'*80}\n{self.id.type}:\n{response}")
+        print(f"{'-'*80}\n{self.id.type} {message.session_id}:\n{response}")
 
-        await self.publish_message(Message(response), topic_id=TopicId(lyric_enhancer_topic, source=self.id.key))
+        if simulate_network_delay:
+            delay = random.uniform(0.01, 0.1)
+            time.sleep(delay)
+
+        await self.publish_message(Message(response, message.session_id), topic_id=TopicId(lyric_enhancer_topic, source=self.id.key))
 
 
 @type_subscription(topic_type=lyric_enhancer_topic)
@@ -150,6 +174,8 @@ class LyricEnhancerAgent(RoutedAgent):
                 """
                 You are a professional hip-hop editor. Refine the draft rap verse by enhancing wordplay, tightening the flow, and ensuring rhythmic balance.
                 Make the lyrics more impactful while staying true to the artist's style. Focus on improving rhyme density, cadence, and vivid imagery.
+
+                Only return the enhanced verse.
 
                 Example Output (Enhanced):
 
@@ -182,9 +208,13 @@ class LyricEnhancerAgent(RoutedAgent):
         response = llm_result.content
         assert (isinstance(response, str))
 
-        print(f"{'-'*80}\n{self.id.type}:\n{response}")
+        print(f"{'-'*80}\n{self.id.type} {message.session_id}:\n{response}")
 
-        await self.publish_message(Message(response), topic_id=TopicId(user_topic, source=self.id.key))
+        if simulate_network_delay:
+            delay = random.uniform(0.01, 0.1)
+            time.sleep(delay)
+
+        await self.publish_message(Message(response, message.session_id), topic_id=TopicId(user_topic, source=self.id.key))
 
 
 @type_subscription(topic_type=user_topic)
@@ -194,4 +224,6 @@ class UserAgent(RoutedAgent):
 
     @message_handler
     async def handle_final_output(self, message: Message, ctx: MessageContext) -> None:
-        print(f"{'-'*80}\n{self.id.type}:\n{message.content}")
+        log_entry = f"{message.session_id} end: {time.time()}"
+        logging.info(log_entry)
+        print(f"{'-'*80}\n{self.id.type} {message.session_id}:\n{message.content}")
